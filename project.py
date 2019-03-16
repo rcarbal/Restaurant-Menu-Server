@@ -1,3 +1,5 @@
+from os import abort
+
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask import session as login_session
 from google.oauth2 import id_token
@@ -10,6 +12,9 @@ import random, string
 
 from oauth2client.client import flow_from_clientsecrets
 from oauth2client.client import FlowExchangeError
+
+from apiclient import discovery
+from oauth2client import client
 
 # Google API
 from google.oauth2 import id_token
@@ -34,63 +39,32 @@ session = DBSession()
 
 @app.route('/gconnect', methods=['POST'])
 def gconnect():
-    
-    try:
-        if (request.args.get('state') != login_session['state']):
-            response = make_response(json.dumps('Invalid state parameter'), 401)
-            response.heaers['Content-Type'] = 'application/json'
-            return response
-        token = request.form['idtoken']
-        credentials = id_token.verify_oauth2_token(token, goo_auth_request.Request(), CLIENT_ID)
-        if credentials['iss'] not in ['accounts.google.com', 'https://accounts.google.com']:
-            response = make_response(json.dumps('Failed to upgrade the authorization code'), 401)
-            response.header['Content-Type'] = 'application/json'
-            return response
-    except ValueError:
-        # Invalid Token
-        pass
-        # TODO: Udacity requires a id_token verification by appending it to a google endpoin it's already verified'
-    url = ('https://oauth2.googleapis.com/tokeninfo?id_token=%s' % token)
-    h = httplib2.Http()
-    result = json.loads(h.request(url, 'GET')[1])
+    # (Receive auth_code by HTTPS POST)
+    auth_code = request.data
+    # If this request does not have `X-Requested-With` header, this could be a CSRF
+    if not request.headers.get('X-Requested-With'):
+        abort(403)
 
-    if result.get('error') is not None:
-        response = make_response(json.dumps(result.get('error')), 500)
-        response.headers['Content-Type'] = 'application/json'
-        return response
-    # Verify that the access token is used for the intended user
-    g_id = credentials['sub']
-    if result['aud'] != CLIENT_ID:
-        response = make_response(json.dumps("Token's client ID does not match app's"), 401)
-        print("Token's client ID does not match app's")
-        response.headers['Content-Type'] = 'application/json'
-        return response
-    # Check if user is already logged into the system
-    stored_credentials = login_session.get('credentials')
-    stored_g_id = login_session.get('g_id')
-    if stored_credentials is not None and g_id == stored_g_id:
-        response = make_response(json.dumps('Current user is already connected'), 200)
-        response.headers['Content-Type'] = 'application/json'
-        print('User already logged in')
-        return response
-    login_session['credentials'] = credentials
-    login_session['g_id'] = g_id
+    # Set path to the Web application client_secret_*.json file you downloaded from the
+    # Google API Console: https://console.developers.google.com/apis/credentials
+    CLIENT_SECRET_FILE = 'client_secrets.json'
 
-    #Get user info
-    login_session['username']=result['name']
-    login_session['email'] = result['email']
-    login_session['picture'] = result['picture']
+    # Exchange auth code for access token, refresh token, and ID token
+    credentials = client.credentials_from_clientsecrets_and_code(
+        CLIENT_SECRET_FILE,
+        ['https://www.googleapis.com/auth/drive.appdata', 'profile', 'email'],
+        auth_code)
 
-    output = ''
-    output += '<h1>Welcome, '
-    output += login_session['username']
-    output += '!</h1>'
-    output += '<img src="'
-    output += login_session['picture']
-    output += ' " style = "width: 300px; height: 300px;border-radius: 150px;-webkit-border-radius: 150px;-moz-border-radius: 150px;"> '
-    flash("you are now logged in as %s" % login_session['username'])
-    print("User successfully logged in")
-    return output
+    # Call Google API
+    http_auth = credentials.authorize(httplib2.Http())
+    drive_service = discovery.build('drive', 'v3', http=http_auth)
+    # appfolder = drive_service.files().get(fileId='appfolder').execute()
+
+    # Get profile info from ID token
+    userid = credentials.id_token['sub']
+    email = credentials.id_token['email']
+    print("Hello")
+
 
 
 # Revoke the users token and reset their login_session

@@ -1,80 +1,70 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" itemscope itemtype="http://schema.org/Article">
 
 <head>
-  <meta name="google-signin-scope" content="profile email">
-  <meta name="google-signin-client_id"
-    content="785654343098-9a5mghf8o8r5ntg74eeqg43bnts1noeh.apps.googleusercontent.com">
-  <script src="https://apis.google.com/js/platform.js" async defer></script>
+  <!--<meta name="google-signin-scope" content="profile email">-->
+  <!--<meta name="google-signin-client_id"-->
+    <!--content="785654343098-9a5mghf8o8r5ntg74eeqg43bnts1noeh.apps.googleusercontent.com">-->
+  <!--<script src="https://apis.google.com/js/platform.js" async defer></script>-->
+
+    <!-- BEGIN Pre-requisites -->
+  <script src="//ajax.googleapis.com/ajax/libs/jquery/1.8.2/jquery.min.js">
+  </script>
+  <script src="https://apis.google.com/js/client:platform.js?onload=start" async defer>
+  </script>
+  <!-- END Pre-requisites -->
+<!-- Continuing the <head> section -->
+  <script>
+    function start() {
+      gapi.load('auth2', function() {
+        auth2 = gapi.auth2.init({
+          client_id: "785654343098-9a5mghf8o8r5ntg74eeqg43bnts1noeh.apps.googleusercontent.com",
+          // Scopes to request in addition to 'profile' and 'email'
+          //scope: 'additional_scope'
+        });
+      });
+    }
+  </script>
 </head>
 
 <body>
 
-  <div class="g-signin2" id="signInButton" data-onsuccess="onSignInCallback" data-approvalprompt="force"></div>
-  <!--TODO: Add any extra result passed in by google-->
-  <!--TODO: Implement if an error was returned by Google-->
-  <!--TODO: implement if no responce was retured by my server-->
-  <script>
+  <button id="signinButton">Sign in with Google</button>
+ <script>
+  $('#signinButton').click(function() {
+    // signInCallback defined in step 6.
+    auth2.grantOfflineAccess().then(signInCallback);
+  });
+</script>
+<!-- Last part of BODY element in file index.html -->
+<script>
+function signInCallback(authResult) {
+  if (authResult['code']) {
 
+    // Hide the sign-in button now that the user is authorized, for example:
+    $('#signinButton').attr('style', 'display: none');
 
-      function onSignInCallback(googleUser) {
-        // Useful data for your client-side scripts:
-
-        var profile = googleUser.getBasicProfile();
-        console.log("ID: " + profile.getId()); // Don't send this directly to your server!
-        console.log('Full Name: ' + profile.getName());
-        console.log('Given Name: ' + profile.getGivenName());
-        console.log('Family Name: ' + profile.getFamilyName());
-        console.log("Image URL: " + profile.getImageUrl());
-        console.log("Email: " + profile.getEmail());
-  
-        // The ID token you need to pass to your backend:
-        var id_token = googleUser.getAuthResponse().id_token;
-        console.log("ID Token: " + id_token);
-  
-        // if (profile.getId){
-        //   $.ajax({
-        //     type: 'POST',
-        //     url: '/gconnect?state={{STATE}}',
-        //     processData: false,
-        //     contentType: 'application/octet-stream; charset=utf-8',
-        //     data: googleUser.getAuthResponse.id_token,
-        //     success: function(result){
-        //       if (result){
-        //         $('#result').html('Login Successful!</br>' + result + '</br>Redirecting...')
-        //         setTimeout(function(){
-        //           window.location.href="/restaurant";
-        //         }, 4000);
-        //       }else if (googleUser.result['error']){
-        //         console.log('There was an eror: ' + googleUser.result['error']);
-        //       }else{
-        //         $('#result').html('Failed to make a server-side call. Check your configuration and console');
-        //       }
-        //     }
-        //   })
-        // }
-  
-        var xhr = new XMLHttpRequest();
-        xhr.open('POST', '/gconnect?state={{STATE}}');
-        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-        xhr.onload = function () {
-          console.log('Signed in as: ' + xhr.responseText);
-        };
-        xhr.send('idtoken=' + id_token);
-      }
-    </script>
-
-  <a href="#" onclick="signOut();">Sign out</a>
-
-  <div id="result"></div>
-  <script>
-    function signOut() {
-      var auth2 = gapi.auth2.getAuthInstance();
-      auth2.signOut().then(function () {
-        console.log('User signed out.');
-      });
-    }
-  </script>
+    // Send the code to the server
+    $.ajax({
+      type: 'POST',
+      url: '/gconnect?state={{STATE}}',
+      // Always include an `X-Requested-With` header in every AJAX request,
+      // to protect against CSRF attacks.
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      contentType: 'application/octet-stream; charset=utf-8',
+      success: function(result) {
+        // Handle or verify the server response.
+      },
+      processData: false,
+      data: authResult['code']
+    });
+  } else {
+    // There was an error.
+  }
+}
+</script>
 
 </body>
 
